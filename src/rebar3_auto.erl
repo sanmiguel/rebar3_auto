@@ -55,7 +55,10 @@ init(State) ->
                      "A list of apps to boot before starting the "
                      "shell. (E.g. --apps app1,app2,app3) Defaults "
                      "to rebar.config {shell, [{apps, Apps}]} or "
-                     "relx apps if not specified."}]},
+                     "relx apps if not specified."},
+                    {watch_dirs, undefined, "dirs", list,
+                     "List of directories to watch for changes. Defaults "
+                     " to [\"src\", \"c_src\"]."}]},
             {short_desc, "Automatically run compile task on change of source file and reload modules."},
             {desc, ""}
     ]),
@@ -119,16 +122,17 @@ listen_on_project_apps(State) ->
     ProjectApps = rebar_state:project_apps(State),
     lists:foreach(
         fun(AppInfo) ->
-            SrcDir = filename:join(rebar_app_info:dir(AppInfo), "src"),
-            CSrcDir = filename:join(rebar_app_info:dir(AppInfo), "c_src"),
-            case filelib:is_dir(SrcDir) of
-                true -> enotify:start_link(SrcDir);
-                false -> ignore
-            end,
-            case filelib:is_dir(CSrcDir) of
-                true -> enotify:start_link(CSrcDir);
-                false -> ignore
-            end
+            Config = rebar_state:get(State, auto, []),
+            Dirs = proplists:get_value(watch_dirs, Config, ["src", "c_src"]),
+            lists:foreach(
+              fun(Dirname) ->
+                  Dir = filename:join(rebar_app_info:dir(AppInfo), Dirname),
+                  case filelib:is_dir(Dir) of
+                      true -> enotify:start_link(Dir);
+                      false -> ignore
+                  end
+              end,
+              Dirs)
         end, 
         ProjectApps ++ CheckoutDeps
     ).
